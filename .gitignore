@@ -1,0 +1,7 @@
+# Local development tools; do not commit downloaded binaries.
+.tools/
+**/target/
+**/.env
+.secrets/
+**/__pycache__/
+**/*.py[cod]

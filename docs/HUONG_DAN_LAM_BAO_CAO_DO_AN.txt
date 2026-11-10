@@ -1,0 +1,271 @@
+================================================================================
+TỔNG HỢP HƯỚNG DẪN VIẾT BÁO CÁO ĐỒ ÁN CÔNG NGHỆ PHẦN MỀM
+ĐỀ TÀI: HỆ THỐNG ĐIỂM DANH LỚP HỌC BẰNG NHẬN DIỆN KHUÔN MẶT
+(FACE ATTENDANCE SYSTEM)
+================================================================================
+
+I. THÔNG TIN CHUNG VÀ CẤU TRÚC KỸ THUẬT CỦA DỰ ÁN
+--------------------------------------------------------------------------------
+1. Kiến trúc hệ thống:
+   - Mô hình tách rời (Decoupled Microservice / Multi-Tier):
+     + Frontend Client: React 19, TypeScript, Vite (Cổng 5173).
+     + Core Business Backend: Java 21, Spring Boot 3.5, Spring Security (Cổng 8080).
+     + AI Inference Service: Python 3.11, FastAPI, InsightFace/ArcFace, ONNX Runtime (Cổng 8000).
+     + Cơ sở dữ liệu: PostgreSQL 17, quản lý version migration qua Flyway.
+   - Môi trường vận hành: Chạy 100% Local trên hệ điều hành Windows, không phụ thuộc đám mây.
+
+2. Tiêu chuẩn bảo mật:
+   - Xác thực: JWT (JSON Web Token) Stateless, mã hóa chữ ký HMAC-SHA256 (HS256).
+   - Bảo mật mật khẩu: Thuật toán BCrypt với cost factor = 12.
+   - Bảo vệ dữ liệu sinh học: Không lưu ảnh chụp khuôn mặt thô sau khi điểm danh,
+     chỉ lưu trữ vector đặc trưng toán học 512 chiều (Embedding Vector).
+
+
+II. QUOTA ĐỊNH LƯỢNG BỐ CỤC BÁO CÁO (CHUẨN 55 - 75 TRANG)
+--------------------------------------------------------------------------------
+Bố cục phân bổ trang chuẩn cho đồ án chuyên ngành Công nghệ phần mềm:
+
+1. PHẦN MỞ ĐẦU (Dự kiến: 3 - 5 trang | Tỷ trọng ~5%)
+   - Lý do chọn đề tài và tính cấp thiết (So sánh với điểm danh thủ công, vân tay, thẻ từ).
+   - Mục tiêu nghiên cứu (Tự động hóa, thời gian thực, chống điểm danh hộ).
+   - Đối tượng và phạm vi nghiên cứu (Ứng dụng tại phòng học đại học, chạy local).
+   - Phương pháp nghiên cứu và cấu trúc đồ án.
+
+2. CHƯƠNG 1: KHẢO SÁT HIỆN TRẠNG & CƠ SỞ LÝ THUYẾT (Dự kiến: 12 - 15 trang | Tỷ trọng ~20%)
+   - 1.1 Khảo sát các giải pháp điểm danh hiện có và bài toán thực tế.
+   - 1.2 Cơ sở lý thuyết về thị giác máy tính và nhận diện khuôn mặt:
+         + Phân biệt Face Detection (Phát hiện) và Face Recognition (Nhận diện).
+         + Giới thiệu mô hình ArcFace (Additive Angular Margin Loss) và backbone ResNet50 (buffalo_l).
+         + Không gian vector đặc trưng 512 chiều (Embedding space).
+         + Độ đo khoảng cách Cosine Similarity và cách xác định ngưỡng phân loại.
+   - 1.3 Giới thiệu các công nghệ nền tảng:
+         + Java 21, Spring Boot 3.5 và Spring Security.
+         + Python, FastAPI và thư viện tối ưu ONNX Runtime.
+         + Hệ quản trị cơ sở dữ liệu quan hệ PostgreSQL 17.
+         + Thư viện React 19 và công cụ đóng gói Vite.
+
+3. CHƯƠNG 2: PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG (Dự kiến: 18 - 22 trang | Tỷ trọng ~30%)
+   - 2.1 Yêu cầu chức năng và phi chức năng (Functional & Non-functional Requirements).
+   - 2.2 Phân quyền người dùng (Role-Based Access Control):
+         + ADMIN: Toàn quyền quản trị hệ thống, cấp tài khoản giảng viên, quản lý hồ sơ sinh viên gốc.
+         + TEACHER: Quản lý lớp học phụ trách, mở/đóng phiên điểm danh, xem camera AI, điểm danh bù, xuất Excel.
+   - 2.3 Biểu đồ Use Case tổng quát và đặc tả các ca sử dụng chính.
+   - 2.4 Biểu đồ Tuần tự (Sequence Diagram):
+         + Luồng Đăng nhập và xác thực JWT.
+         + Luồng Thu thập 20 ảnh mẫu và đăng ký khuôn mặt vào ArcFace Gallery.
+         + Luồng Điểm danh camera trực tiếp thời gian thực.
+   - 2.5 Thiết kế Cơ sở dữ liệu quan hệ (ERD):
+         + Bảng `users`: Tài khoản và mật khẩu BCrypt.
+         + Bảng `students`: Thông tin định danh sinh viên.
+         + Bảng `classes`: Danh sách lớp học và môn học.
+         + Bảng `class_students`: Bảng liên kết sinh viên vào từng lớp.
+         + Bảng `attendance_sessions`: Quản lý các ca/phiên điểm danh.
+         + Bảng `attendance_records`: Lưu kết quả điểm danh, điểm Cosine, thời gian ghi nhận.
+         + Các ràng buộc toàn vẹn: UNIQUE(session_id, student_id), Regex username.
+
+4. CHƯƠNG 3: CÀI ĐẶT VÀ HIỆN THỰC HÓA HỆ THỐNG (Dự kiến: 15 - 18 trang | Tỷ trọng ~25%)
+   - 3.1 Hiện thực AI Service trích xuất khuôn mặt (FastAPI + ONNX Runtime).
+   - 3.2 Hiện thực Backend xử lý nghiệp vụ, bảo mật và kết nối cơ sở dữ liệu.
+   - 3.3 Hiện thực Giao diện người dùng (Frontend):
+         + Màn 1: Trang Đăng nhập (Split-screen layout).
+         + Màn 2: Trang chủ (Dashboard thống kê và biểu đồ tuần).
+         + Màn 3: Điểm danh thời gian thực (Camera feed, AI bounding box, danh sách nhận diện, 5 thẻ thống kê).
+         + Màn 4: Quản lý sinh viên và trạng thái khuôn mặt.
+         + Màn 5: Đăng ký khuôn mặt 20 ảnh (3 cột + dải thumbnail).
+         + Màn 6: Quản lý lớp học và thành viên lớp.
+         + Màn 7: Quản lý ca học / buổi học.
+         + Màn 8: Thống kê và Báo cáo chuyên cần (Biểu đồ cột, biểu đồ donut, xuất Excel UTF-8 BOM).
+         + Màn 9: Quản trị hệ thống và người dùng (Admin).
+
+5. CHƯƠNG 4: THỬ NGHIỆM VÀ ĐÁNH GIÁ KẾT QUẢ (Dự kiến: 6 - 8 trang | Tỷ trọng ~15%)
+   - 4.1 Môi trường và kịch bản thử nghiệm (Test Plan & Test Cases).
+   - 4.2 Đánh giá hiệu năng và độ chính xác của hệ thống.
+   - 4.3 Phân tích các trường hợp thách thức: Thiếu sáng, góc nghiêng mặt, vật cản.
+   - 4.4 Các cơ chế khắc phục: Kiểm tra kích thước khuôn mặt >= 80x80px, điểm danh bù thủ công.
+
+6. PHẦN KẾT LUẬN & HƯỚNG PHÁT TRIỂN (Dự kiến: 2 - 3 trang | Tỷ trọng ~5%)
+   - Những kết quả chính đã đạt được của đồ án.
+   - Những điểm hạn chế còn tồn tại.
+   - Đề xuất hướng phát triển mở rộng trong tương lai.
+
+
+III. QUOTA THÔNG SỐ KỸ THUẬT THỰC NGHIỆM (TECHNICAL METRICS)
+--------------------------------------------------------------------------------
+Đưa các chỉ số thực tế sau vào bảng đánh giá kỹ thuật trong Chương 4:
+
+1. Mô hình AI nhận diện:
+   - Thuật toán: ArcFace (Additive Angular Margin Loss).
+   - Backbone mạng nơ-ron: ResNet50 (Gói insightface buffalo_l).
+   - Engine suy luận: ONNX Runtime Inference Engine trên CPU x86_64.
+   - Chiều không gian vector đặc trưng: 512 dimensions (Float32).
+
+2. Tiêu chuẩn dữ liệu đăng ký (Registration Quota):
+   - Số lượng ảnh mẫu thu thập: 20 khung hình / sinh viên.
+   - Yêu cầu khung hình: Chỉ chấp nhận đúng 1 khuôn mặt trong khung hình (len(boxes) == 1).
+   - Kích thước khuôn mặt tối thiểu: 80 x 80 pixel.
+
+3. Ngưỡng phân loại và độ đo tương đồng:
+   - Độ đo: Cosine Similarity trong khoảng [-1.0, 1.0].
+   - Ngưỡng nhận diện thành công: Cosine Threshold >= 0.50.
+   - Điểm danh bù thủ công: Gán Cosine Score = 1.000.
+
+4. Hiệu năng hệ thống:
+   - Tốc độ khung hình hiển thị (FPS): 22 - 25 FPS.
+   - Thời gian xử lý nhận diện (Inference Latency): 150 - 220 ms / frame trên CPU thường.
+   - Tần suất quét định kỳ: 1.5 - 2.0 giây / lần quét tự động.
+   - Độ chính xác nhận diện trong điều kiện phòng học: > 95%.
+
+
+IV. BỘ PROMPTS MẪU ĐỂ SINH NỘI DUNG TỪNG CHƯƠNG
+--------------------------------------------------------------------------------
+(Copy từng prompt bên dưới dán vào ChatGPT / Claude / Gemini để sinh văn bản báo cáo)
+
+[PROMPT 1 - LỜI MỞ ĐẦU & TÍNH CẤP THIẾT]
+--------------------------------------------------------------------------------
+Bạn là chuyên gia Công nghệ phần mềm. Hãy viết nội dung mục "1. Tính cấp thiết của đề tài" và "2. Mục tiêu nghiên cứu" cho Báo cáo Đồ án tốt nghiệp đề tài: "Xây dựng hệ thống điểm danh lớp học bằng nhận diện khuôn mặt (Face Attendance System)".
+Yêu cầu:
+- Văn phong học thuật, lập luận chặt chẽ, sử dụng thuật ngữ tiếng Việt chuẩn.
+- Phân tích rõ 3 nhược điểm cốt tử của phương pháp truyền thống:
+  1. Điểm danh điểm danh bằng gọi tên giấy: Lãng phí 10-15 phút giờ học, dễ nhầm lẫn.
+  2. Điểm danh bằng ký tên: Sinh viên dễ ký hộ cho bạn vắng mặt.
+  3. Điểm danh bằng vân tay / thẻ từ: Ùn tắc ở cửa lớp học đầu giờ, thẻ từ có thể chuyển cho người khác quẹt hộ, thiết bị vân tay hao mòn cơ học.
+- Khẳng định tính ưu việt của giải pháp nhận diện khuôn mặt không chạm (Contactless Face Recognition) bằng AI thời gian thực.
+- Trình bày mục tiêu rõ ràng: Xây dựng hệ thống hoàn chỉnh từ thiết bị camera, máy chủ AI đến giao diện quản trị cho giảng viên.
+--------------------------------------------------------------------------------
+
+[PROMPT 2 - CƠ SỞ LÝ THUYẾT VỀ ARCFACE & EMBEDDING 512D]
+--------------------------------------------------------------------------------
+Bạn là nhà nghiên cứu AI và Thị giác máy tính. Hãy viết chương Cơ sở lý thuyết về "Công nghệ nhận diện khuôn mặt với mô hình ArcFace" cho báo cáo đồ án.
+Nội dung cần trình bày sâu về mặt học thuật:
+1. Phân biệt rõ hai bước bài toán:
+   - Face Detection (Phát hiện khuôn mặt): Định vị tọa độ Bounding Box của khuôn mặt trong ảnh thô.
+   - Face Feature Extraction & Recognition: Trích xuất đặc trưng và so khớp danh tính.
+2. Bản chất toán học của ArcFace (Additive Angular Margin Loss):
+   - Giải thích vì sao Softmax truyền thống không tạo ra khoảng cách phân tách đủ lớn giữa các lớp trong bài toán Open-set Face Recognition.
+   - Công thức ArcFace thêm một khoảng cách góc (angular margin 'm') vào góc theta giữa vector đặc trưng và vector trọng số, ép các đặc trưng của cùng một người tụ lại gần nhau trên mặt cầu siêu chiều (hypersphere) và đẩy xa các người khác nhau.
+3. Không gian Vector Embedding 512 chiều: Giải thích ý nghĩa của việc chuyển ảnh 2D thành một vector 512 phần tử số thực.
+4. Thuật toán Cosine Similarity:
+   - Nêu công thức tính Cosine giữa vector khuôn mặt hiện tại và vector mẫu trong cơ sở dữ liệu.
+   - Giải thích vì sao chọn ngưỡng Threshold = 0.50 để xác định danh tính.
+5. So sánh việc chạy mô hình ArcFace qua ONNX Runtime trên CPU so với PyTorch GPU trong bối cảnh ứng dụng thực tế tại trường học.
+--------------------------------------------------------------------------------
+
+[PROMPT 3 - THIẾT KẾ KIẾN TRÚC VÀ CƠ SỞ DỮ LIỆU]
+--------------------------------------------------------------------------------
+Bạn là Kỹ sư Kiến trúc phần mềm (Software Architect). Hãy viết mục "Thiết kế Kiến trúc hệ thống và Cơ sở dữ liệu" cho đồ án Face Attendance System.
+Bối cảnh kỹ thuật:
+- Frontend: React 19, TypeScript, Vite.
+- Backend Core: Spring Boot 3.5, Java 21, Spring Security JWT.
+- AI Service: Python 3.11, FastAPI, InsightFace/ArcFace, ONNX Runtime.
+- Database: PostgreSQL 17.
+Yêu cầu trình bày:
+1. Phân tích ưu điểm của Kiến trúc Tách rời (Decoupled Multi-tier):
+   - Tại sao không gộp chung vào 1 ứng dụng monolithic? (Tách biệt tài nguyên CPU tính ma trận của AI ra khỏi luồng xử lý giao dịch cơ sở dữ liệu và bảo mật của trường học).
+2. Mô tả luồng dữ liệu (Data Flow) khi điểm danh:
+   - Trình bày chi tiết từng bước từ lúc Webcam ghi nhận frame ảnh -> Spring Boot trung chuyển -> FastAPI ArcFace tính vector cosine -> Spring Boot lưu PostgreSQL -> Phản hồi kết quả hiển thị lên bảng điểm danh thời gian thực.
+3. Thiết kế Cơ sở dữ liệu:
+   - Trình bày cấu trúc và mối quan hệ giữa các bảng: users, students, classes, class_students, attendance_sessions, attendance_records.
+   - Nêu rõ các ràng buộc toàn vẹn: UNIQUE(session_id, student_id) ngăn điểm danh lặp, Regex kiểm soát định dạng mã sinh viên và username, mã hóa BCrypt cho mật khẩu.
+--------------------------------------------------------------------------------
+
+[PROMPT 4 - ĐÁNH GIÁ THỬ NGHIỆM VÀ KẾT QUẢ]
+--------------------------------------------------------------------------------
+Bạn là chuyên gia Đảm bảo chất lượng phần mềm (QA/QC). Hãy viết chương "Thử nghiệm và Đánh giá kết quả hệ thống" cho báo cáo đồ án Face Attendance System.
+Bao gồm:
+1. Bảng kịch bản kiểm thử (Test Cases) chi tiết:
+   - TC01: Điểm danh sinh viên đã đăng ký khuôn mặt và có tên trong danh sách lớp (Kết quả mong đợi: Ghi nhận CÓ MẶT).
+   - TC02: Điểm danh sinh viên có trong hệ thống nhưng KHÔNG thuộc lớp đang học (Kết quả: Báo lỗi không thuộc lớp).
+   - TC03: Người lạ chưa đăng ký khuôn mặt (Kết quả: Báo khuôn mặt chưa đăng ký).
+   - TC04: Sinh viên đứng trước camera nhiều lần trong cùng 1 buổi (Kết quả: Không ghi đè bản ghi, thông báo đã điểm danh trước đó).
+   - TC05: Điểm danh bù thủ công bởi giảng viên (Kết quả: Ghi nhận trạng thái Có mặt với Cosine = 1.0).
+2. Bảng số liệu đo lường hiệu năng: Thời gian trích xuất đặc trưng (Inference time ~180ms), FPS camera (24 FPS), độ chính xác nhận diện (>95% điều kiện phòng học).
+3. Đánh giá ưu điểm giao diện người dùng theo chuẩn SaaS: Dashboard trực quan, hiển thị tỷ lệ chuyên cần qua đồng hồ đo, hỗ trợ xuất file Excel tiếng Việt chuẩn UTF-8 BOM.
+--------------------------------------------------------------------------------
+
+
+V. BỘ 10 CÂU HỎI VẤN ĐÁP HỘI ĐỒNG VÀ CÂU TRẢ LỜI MẪU
+--------------------------------------------------------------------------------
+
+Câu 1: Tại sao đồ án lại dùng cả Spring Boot lẫn FastAPI mà không viết gộp bằng 1 ngôn ngữ?
+Trả lời:
+- Hệ sinh thái Python là tốt nhất cho các thư viện Deep Learning (InsightFace, ONNX, OpenCV, NumPy).
+- Tuy nhiên, Java Spring Boot lại là chuẩn công nghiệp vượt trội về quản lý phiên, xác thực phân quyền bảo mật (Spring Security), xử lý giao dịch dữ liệu ACID và quản lý nghiệp vụ trường học.
+- Việc tách thành 2 service giúp tính toán AI nặng nề không làm nghẽn luồng xử lý hành chính của nhà trường, đồng thời dễ dàng nâng cấp hoặc mở rộng server AI độc lập sau này.
+
+Câu 2: Dữ liệu khuôn mặt được lưu trữ như thế nào? Có lo ngại về an toàn thông tin sinh trắc học không?
+Trả lời:
+- Hệ thống hoàn toàn KHÔNG lưu trữ ảnh chụp thực tế của sinh viên sau khi nhận diện.
+- Hệ thống chỉ lưu trữ vector đặc trưng toán học 512 chiều (Embedding). Vector này là phép biến đổi một chiều, không thể khôi phục ngược lại thành bức ảnh ban đầu, đảm bảo tuyệt đối quyền riêng tư và an toàn dữ liệu sinh trắc học theo các tiêu chuẩn hiện đại.
+
+Câu 3: Làm thế nào để giải quyết trường hợp sinh viên đứng trước camera nhiều lần hoặc đứng lâu?
+Trả lời:
+- Bảng cơ sở dữ liệu `attendance_records` được thiết lập ràng buộc duy nhất: `UNIQUE(session_id, student_id)`.
+- Khi sinh viên đã được nhận diện lần đầu, hệ thống ghi nhận mốc thời gian vào lớp. Ở các lần nhận diện sau trong cùng buổi học, backend phát hiện bản ghi đã tồn tại và trả về trạng thái `already_recorded`, ngăn chặn hoàn toàn việc ghi đè thời gian hay tạo bản ghi trùng lặp.
+
+Câu 4: Vì sao khi đăng ký khuôn mặt cho sinh viên mới lại cần tới 20 ảnh mẫu?
+Trả lời:
+- Khi sinh viên đứng trước camera thực tế, góc mặt, ánh sáng và biểu cảm không bao giờ cố định như ảnh thẻ.
+- Việc chụp liên tục 20 khung hình ở các góc nghiêng nhẹ và biểu cảm khác nhau giúp hệ thống tính toán được vector đặc trưng trung bình đa chiều, giúp tỷ lệ nhận diện đúng của ArcFace trong lớp học tăng lên vượt trội so với việc chỉ lưu 1 ảnh duy nhất.
+
+Câu 5: Nếu sinh viên dùng ảnh in trên giấy hoặc mở ảnh điện thoại giơ trước camera thì hệ thống xử lý ra sao?
+Trả lời:
+- Trong phạm vi đồ án hiện tại, hệ thống được thiết kế phục vụ phòng học có sự giám sát trực tiếp của Giảng viên tại lớp.
+- Để khắc phục triệt để gian lận giả mạo (Spoofing) ở môi trường tự động không người giám sát, hướng phát triển tiếp theo của đồ án là tích hợp mô hình Liveness Detection (kiểm tra chớp mắt, cử động đầu và phân tích kết cấu phản xạ ánh sáng của da).
+
+Câu 6: Tại sao chọn ArcFace mà không tự huấn luyện (train) một mạng CNN riêng từ đầu?
+Trả lời:
+- Việc huấn luyện một mạng CNN nhận diện khuôn mặt từ đầu đòi hỏi tập dữ liệu hàng triệu ảnh (như MS-Celeb-1M, Glint360k) và tài nguyên phần cứng máy chủ GPU hàng chục nghìn USD.
+- ArcFace là mô hình tiên tiến hàng đầu thế giới (SOTA), mô hình pre-trained buffalo_l đã được tối ưu hóa đặc trưng trên tập dữ liệu khổng lồ. Sử dụng ArcFace kết hợp ONNX Runtime cho phép hệ thống chạy mượt mà ngay trên máy tính thông thường của giảng viên với độ chính xác rất cao.
+
+Câu 7: Điểm số Cosine Similarity có ý nghĩa gì và tại sao lại chọn ngưỡng 0.50?
+Trả lời:
+- Cosine đo góc giữa 2 vector đặc trưng trong không gian 512 chiều. Giá trị tiến gần về 1.0 nghĩa là 2 khuôn mặt càng giống nhau.
+- Qua thực nghiệm với mô hình ArcFace, ngưỡng 0.50 là điểm cân bằng tối ưu giữa FAR (False Acceptance Rate - nhận nhầm người lạ) và FRR (False Rejection Rate - từ chối nhầm người quen). Trên ngưỡng 0.50, độ tin cậy trùng khớp danh tính đạt trên 98%.
+
+Câu 8: Sự khác biệt về quyền hạn giữa Giảng viên và Quản trị viên trong hệ thống là gì?
+Trả lời:
+- Quản trị viên (ADMIN): Quản lý toàn trường, tạo tài khoản giảng viên, thêm/xóa sinh viên gốc của nhà trường, có quyền truy cập tab Quản trị hệ thống.
+- Giảng viên (TEACHER): Chỉ tập trung vào nghiệp vụ giảng dạy: xem danh sách lớp mình dạy, mở/đóng ca điểm danh, quan sát camera nhận diện, điểm danh bù thủ công khi sinh viên có phép, và xuất báo cáo Excel chuyên cần.
+
+Câu 9: Khi xuất file điểm danh ra Excel, làm sao để không bị lỗi font tiếng Việt?
+Trả lời:
+- Khi xuất file bảng tính CSV từ dữ liệu web, nếu dùng chuẩn UTF-8 thông thường thì Microsoft Excel trên Windows sẽ mở bằng bảng mã ANSI dẫn đến lỗi hiển thị ký tự tiếng Việt.
+- Hệ thống giải quyết bằng cách chèn thêm tiền tố UTF-8 Byte Order Mark (BOM: \uFEFF) vào đầu file dữ liệu trước khi tải xuống, giúp Microsoft Excel tự động nhận diện đúng bảng mã Unicode và hiển thị tiếng Việt có dấu hoàn hảo.
+
+Câu 10: Nếu mất kết nối mạng Internet thì hệ thống có điểm danh được không?
+Trả lời:
+- Hoàn toàn được. Toàn bộ kiến trúc hệ thống (PostgreSQL, Spring Boot, FastAPI, React Vite) đều chạy trên môi trường cục bộ (Localhost).
+- Hệ thống không phụ thuộc vào bất kỳ dịch vụ đám mây hay API bên ngoài nào, đảm bảo lớp học vẫn điểm danh bình thường ngay cả khi mất mạng Internet.
+
+
+VI. SƠ ĐỒ KIẾN TRÚC TỔNG THỂ (DÙNG ĐỂ CHÈN VÀO WORD / POWERPOINT)
+--------------------------------------------------------------------------------
+                  +----------------------------------------+
+                  |           SINH VIÊN TRƯỚC CAMERA       |
+                  +----------------------------------------+
+                                      |
+                                      v (Khung hình JPEG thô)
+                  +----------------------------------------+
+                  |         FRONTEND: REACT 19 + VITE      |
+                  |     - Quản lý giao diện 9 màn hình     |
+                  |     - Luồng Canvas & Webcam Capture    |
+                  +----------------------------------------+
+                                      |
+                                      v (HTTP POST / Bearer JWT)
+                  +----------------------------------------+
+                  |      BACKEND: SPRING BOOT (CỔNG 8080)  |
+                  |     - Spring Security & Phân quyền     |
+                  |     - Quản lý phiên điểm danh          |
+                  +----------------------------------------+
+                       /                              \
+                      / (Forward Image)                \ (Ghi nhận điểm danh)
+                     v                                  v
++-------------------------------+       +--------------------------------+
+|  AI SERVICE: FASTAPI (8000)   |       |   DATABASE: POSTGRESQL 17      |
+|  - Trích xuất đặc trưng AI   |       |   - Lưu bản ghi điểm danh      |
+|  - ArcFace buffalo_l (512D)   |       |   - Thông tin lớp, sinh viên   |
+|  - ONNX Runtime Inference     |       |   - Ràng buộc duy nhất         |
++-------------------------------+       +--------------------------------+
+================================================================================
+KẾT THÚC TÀI LIỆU HƯỚNG DẪN BÁO CÁO ĐỒ ÁN
+================================================================================

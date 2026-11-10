@@ -1,0 +1,19 @@
+\set ON_ERROR_STOP on
+
+SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = 'attendance_app') AS role_exists \gset
+\if :role_exists
+    \echo 'Role attendance_app already exists. Password not changed.'
+\else
+    CREATE ROLE attendance_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+    \echo 'Choose a NEW application password. Do not use the postgres administrator password.'
+    \password attendance_app
+\endif
+
+SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = 'face_attendance') AS db_exists \gset
+\if :db_exists
+    \echo 'Database face_attendance already exists. Existing data and ownership not changed.'
+\else
+    CREATE DATABASE face_attendance OWNER attendance_app ENCODING 'UTF8' TEMPLATE template0;
+\endif
+
+\echo 'Setup complete. Verify connection as attendance_app before starting Spring Boot.'
